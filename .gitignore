@@ -1,0 +1,6 @@
+*.csv
+.env
+ssh_keys/
+data/
+__pycache__/
+*.pyc
