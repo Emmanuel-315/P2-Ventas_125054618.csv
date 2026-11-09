@@ -1,0 +1,56 @@
+name: datamart
+
+services:
+  hadoop:
+    build: ./hadoop
+    container_name: datamart-hadoop
+    hostname: hadoop
+    volumes:
+      # Dataset en solo lectura (pon tu CSV en ./data)
+      - ./data:/data/input:ro
+      # Salida del job: volumen nombrado compartido con la api (solo lectura allá)
+      - hadoop_out:/data/output
+      - ./mapreduce:/home/hadoop/mapreduce:ro
+      - ./scripts:/scripts:ro
+      # Llave PÚBLICA de la api para authorized_keys (se genera con scripts/gen_keys.sh)
+      - ./ssh_keys/api_id_ed25519.pub:/keys/api.pub:ro
+    networks: [datamart_net]
+
+  db:
+    image: postgres:16-bookworm
+    container_name: datamart-db
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [datamart_net]
+
+  api:
+    build: ./api
+    container_name: datamart-api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      hadoop:
+        condition: service_started
+    volumes:
+      - hadoop_out:/data/output:ro
+      - ./scripts:/scripts:ro
+      # Llave PRIVADA de la api para hacer ssh hacia hadoop
+      - ./ssh_keys/api_id_ed25519:/keys/id_ed25519:ro
+    networks: [datamart_net]
+
+networks:
+  datamart_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  hadoop_out:
