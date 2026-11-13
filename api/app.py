@@ -129,3 +129,33 @@ def actualizar(rid):
 def borrar(rid):
     n = run("DELETE FROM resultados WHERE id = %s", (rid,), None)
     return ("", 204) if n else ({"error": "no encontrado"}, 404)
+
+
+@app.get("/tabla")
+def tabla():
+    """Vista HTML de la tabla. Opcional: ?categoria=Ropa"""
+    from html import escape
+    cat = request.args.get("categoria")
+    if cat:
+        rows = run(f"SELECT {COLS} FROM resultados WHERE lower(categoria) = lower(%s) "
+                   "ORDER BY hora, categoria", (cat,))
+    else:
+        rows = run(f"SELECT {COLS} FROM resultados ORDER BY hora, categoria")
+    filas = "".join(
+        f"<tr><td>{r['id']}</td><td>{r['hora']}</td><td>{escape(r['categoria'])}</td>"
+        f"<td class='n'>${r['ingreso_total']:,.2f}</td></tr>" for r in rows)
+    html = f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Ingreso por hora y categoría</title>
+<style>
+body{{font-family:system-ui,sans-serif;margin:2rem;background:#fafafa;color:#222}}
+table{{border-collapse:collapse;min-width:480px}}
+th,td{{border:1px solid #ccc;padding:6px 12px}}
+th{{background:#1f3a5f;color:#fff;position:sticky;top:0}}
+tr:nth-child(even){{background:#f0f4f8}} .n{{text-align:right}}
+</style></head><body>
+<h2>Ingreso total por hora del día y categoría</h2>
+<p>{len(rows)} registros{' — categoría: ' + escape(cat) if cat else ''} ·
+<a href="/resultados">JSON</a> · <a href="/tabla">ver todo</a></p>
+<table><tr><th>ID</th><th>Hora</th><th>Categoría</th><th>Ingreso total</th></tr>{filas}</table>
+</body></html>"""
+    return html
